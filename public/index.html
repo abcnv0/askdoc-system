@@ -1,0 +1,1999 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ricoh Document Discovery</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { 
+            font-family: system-ui, -apple-system, sans-serif; 
+            background: #f9fafb; 
+            overflow: hidden;
+        }
+
+        /* 헤더 */
+        .header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: #2563eb;
+            color: white;
+            padding: 16px;
+            font-size: 24px;
+            font-weight: bold;
+            z-index: 10;
+        }
+
+        /* 컨테이너 */
+        .container {
+            display: flex;
+            height: 100vh;
+            padding-top: 64px;
+        }
+
+        /* 사이드바 */
+        .sidebar {
+            width: 320px;
+            background: white;
+            border-right: 1px solid #e5e7eb;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .tab {
+            flex: 1;
+            padding: 12px;
+            text-align: center;
+            font-weight: bold;
+            border-bottom: 2px solid transparent;
+            cursor: pointer;
+            background: white;
+            border: none;
+            transition: all 0.2s;
+        }
+
+        .tab:hover { background: #dbeafe; }
+        .tab.active {
+            background: #dbeafe;
+            color: #1e40af;
+            border-bottom-color: #1e40af;
+        }
+
+        .current-path {
+            padding: 12px 16px;
+            background: #f9fafb;
+            border-bottom: 1px solid #e5e7eb;
+            font-size: 14px;
+            color: #6b7280;
+        }
+
+        .file-tree {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px 0;
+        }
+
+        .tree-item {
+            display: flex;
+            align-items: center;
+            padding: 4px 8px;
+            cursor: pointer;
+            user-select: none;
+            position: relative;
+            transition: background 0.2s;
+        }
+
+        .tree-item:hover { background: #dbeafe; }
+        .tree-item.selected { 
+            background: #dbeafe; 
+            border-left: 3px solid #2563eb; 
+        }
+        .tree-item.selected-parent { 
+            background: #fef3c7; 
+            border-left: 3px solid #f59e0b; 
+        }
+
+        .expand-icon {
+            margin-right: 4px;
+            font-size: 12px;
+            width: 16px;
+            transition: transform 0.2s;
+            color: #6b7280;
+            cursor: pointer;
+        }
+
+        .expand-icon.expanded { transform: rotate(90deg); }
+        .expand-icon.empty { visibility: hidden; }
+
+        .tree-icon {
+            margin-right: 8px;
+            font-size: 16px;
+        }
+
+        .tree-name {
+            flex: 1;
+            font-size: 14px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .delete-btn {
+            position: absolute;
+            right: 8px;
+            background: #ef4444;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            font-size: 12px;
+            cursor: pointer;
+            display: none;
+            line-height: 1;
+        }
+
+        .tree-item:hover .delete-btn { display: block; }
+
+        .depth-1 { padding-left: 28px; }
+        .depth-2 { padding-left: 48px; }
+        .depth-3 { padding-left: 68px; }
+        .depth-4 { padding-left: 88px; }
+
+        .actions {
+            display: flex;
+            gap: 8px;
+            padding: 12px 16px;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 8px 12px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            transition: background 0.2s;
+        }
+
+        .btn-primary {
+            background: #2563eb;
+            color: white;
+        }
+
+        .btn-primary:hover { background: #1d4ed8; }
+
+        .btn-success {
+            background: #16a34a;
+            color: white;
+        }
+
+        .btn-success:hover { background: #15803d; }
+
+        /* 메인 컨텐츠 */
+        .main-content {
+            flex: 1;
+            display: flex;
+        }
+
+        .document-area {
+            width: 50%;
+            background: white;
+            border-right: 1px solid #e5e7eb;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .section-title {
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+
+        .filename-input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            background: #faf5ff;
+            margin-bottom: 12px;
+            font-size: 14px;
+        }
+
+        .document-content {
+            flex: 1;
+            border: 1px solid #e5e7eb;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 12px;
+            overflow-y: auto;
+            line-height: 1.6;
+            color: #374151;
+        }
+
+        .document-meta {
+            border: 1px solid #e5e7eb;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 12px;
+            font-size: 13px;
+            color: #6b7280;
+            line-height: 1.5;
+        }
+
+        .view-buttons {
+            display: flex;
+            gap: 8px;
+            margin-top: auto;
+        }
+
+        .view-btn {
+            flex: 1;
+            height: 36px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            background: #f9fafb;
+            color: #374151;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+
+        .view-btn.active {
+            background: #2563eb;
+            color: white;
+            border-color: #2563eb;
+        }
+
+        .view-btn:hover:not(.active) {
+            background: #f3f4f6;
+        }
+
+        /* 검색 패널 */
+        .search-panel {
+            width: 33.333%;
+            background: white;
+            padding: 16px;
+            overflow-y: auto;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            margin-bottom: 16px;
+            font-size: 14px;
+        }
+
+        .result-card {
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .result-card:hover { box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .result-card.selected {
+            border-color: #2563eb;
+            background: #dbeafe;
+        }
+
+        .result-title {
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+
+        .result-info {
+            font-size: 13px;
+            color: #6b7280;
+            margin-bottom: 6px;
+        }
+
+        .result-bar {
+            height: 6px;
+            background: #2563eb;
+            border-radius: 3px;
+        }
+
+        .explanation {
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            padding: 12px;
+            font-size: 14px;
+            color: #374151;
+            line-height: 1.5;
+            margin-top: 16px;
+        }
+
+        /* 모달 */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .modal {
+            background: white;
+            border-radius: 8px;
+            padding: 24px;
+            width: 400px;
+            max-width: 90%;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .modal h3 {
+            margin-bottom: 16px;
+            color: #374151;
+            font-size: 18px;
+        }
+
+        .modal input,
+        .modal select {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 16px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .modal select {
+            background: #dbeafe;
+        }
+
+        .file-upload-area {
+            border: 2px dashed #d1d5db;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            margin-bottom: 16px;
+            cursor: pointer;
+            transition: border-color 0.3s;
+        }
+
+        .file-upload-area:hover { border-color: #2563eb; }
+        .file-upload-area.dragover { border-color: #2563eb; background: #f0f8ff; }
+
+        .file-info {
+            font-size: 12px;
+            color: #6b7280;
+            margin-top: 8px;
+        }
+
+        .selected-file-info {
+            padding: 10px;
+            background: #dcfce7;
+            border-radius: 6px;
+            margin-bottom: 16px;
+            font-size: 14px;
+        }
+
+        .modal-buttons {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+        }
+
+        .modal-btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .modal-btn-primary {
+            background: #2563eb;
+            color: white;
+        }
+
+        .modal-btn-primary:hover { background: #1d4ed8; }
+        .modal-btn-primary:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+        }
+
+        .modal-btn-secondary {
+            background: #f9fafb;
+            color: #374151;
+            border: 1px solid #d1d5db;
+        }
+
+        .modal-btn-secondary:hover { background: #f3f4f6; }
+
+        /* 로딩 스피너 */
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #2563eb;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 8px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* 알림 토스트 */
+        .toast {
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            background: #10b981;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 6px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            z-index: 1001;
+            transform: translateX(400px);
+            transition: transform 0.3s ease;
+        }
+
+        .toast.show { transform: translateX(0); }
+        .toast.error { background: #ef4444; }
+
+        /* 유틸리티 */
+        .hidden { display: none !important; }
+        .mt-4 { margin-top: 16px; }
+        .mb-4 { margin-bottom: 16px; }
+    </style>
+</head>
+<body>
+    <div class="header">Ricoh Document Discovery</div>
+    
+    <div class="container">
+        <!-- 사이드바 -->
+        <div class="sidebar">
+            <!-- 탭 -->
+            <div class="tabs">
+                <button class="tab active" id="tab-my">My 문서함</button>
+                <button class="tab" id="tab-public">공용문서함</button>
+            </div>
+
+            <!-- 현재 경로 -->
+            <div class="current-path" id="current-path">📁 루트</div>
+
+            <!-- 파일 트리 -->
+            <div class="file-tree" id="file-tree">
+                <div style="text-align: center; padding: 20px; color: #6b7280;">
+                    <div class="loading"></div>
+                    데이터를 불러오는 중...
+                </div>
+            </div>
+
+            <!-- 액션 버튼 -->
+            <div class="actions">
+                <button class="btn btn-primary" onclick="openFolderModal()">
+                    ➕ 폴더 추가
+                </button>
+                <button class="btn btn-success" onclick="openDocumentModal()">
+                    📁 문서 추가
+                </button>
+            </div>
+        </div>
+
+        <!-- 메인 컨텐츠 -->
+        <div class="main-content">
+            <!-- 문서 영역 -->
+            <div class="document-area">
+                <div class="section-title">문서 내용</div>
+                <input class="filename-input" id="filename-input" value="iPS_매뉴얼.PDF" readonly />
+                <div class="document-content" id="document-content">
+                    이 문서는 RICOH Korea에서 제공하는 웹 기반 문서 관리 시스템으로, 스캔/팩스 문서를 웹과 모바일 브라우저를 통해 저장, 공유, 이메일 전송, 검색하는 기능을 포함하고 있습니다.
+                    <div style="text-align: center; margin-top: 16px;">
+                        <div style="display: inline-block; border: 2px dashed #d1d5db; padding: 32px; border-radius: 8px;">
+                            📄 iPS menual
+                        </div>
+                    </div>
+                </div>
+                <div class="document-meta" id="document-meta">
+                    작성자: iPS 개발팀<br />
+                    최종 수정일: 2023-09-15<br />
+                    파일 크기: 254KB
+                </div>
+                <div class="view-buttons">
+                    <button class="view-btn active" onclick="changeView('search')">문서함 내 연관문서 검색</button>
+                    <button class="view-btn" onclick="changeView('email')">이메일 연관문서 검색</button>
+                    <button class="view-btn" onclick="changeView('summary')">요약내용 보기</button>
+                </div>
+            </div>
+
+            <!-- 검색 패널 -->
+            <div class="search-panel">
+                <div class="section-title">문서 검색</div>
+                <input class="search-input" id="search-input" placeholder="자연어 질의 입력..." />
+                <div class="section-title">연관 문서</div>
+                
+                <div class="result-card selected">
+                    <div class="result-title">iPS_화면_Design.pdf</div>
+                    <div class="result-info">
+                        연관도: 95%<br/>
+                        공통 키워드: iPS_요구사항, iPS_화면디자인
+                    </div>
+                    <div class="result-bar" style="width: 95%;"></div>
+                </div>
+                
+                <div class="result-card">
+                    <div class="result-title">iPS_개발 아키텍처.pdf</div>
+                    <div class="result-info">
+                        연관도: 92%<br/>
+                        공통 키워드: iPS_요구사항, iPS_기능
+                    </div>
+                    <div class="result-bar" style="width: 92%;"></div>
+                </div>
+                
+                <div class="result-card">
+                    <div class="result-title">iPS_개발 회의록.pdf</div>
+                    <div class="result-info">
+                        연관도: 82%<br/>
+                        공통 키워드: iPS_요구사항, iPS_기능
+                    </div>
+                    <div class="result-bar" style="width: 82%;"></div>
+                </div>
+                
+                <div class="result-card">
+                    <div class="result-title">iPS_제안서.pdf</div>
+                    <div class="result-info">
+                        연관도: 75%<br/>
+                        공통 키워드: iPS_요구사항, iPS_기능
+                    </div>
+                    <div class="result-bar" style="width: 75%;"></div>
+                </div>
+                
+                <div class="result-card">
+                    <div class="result-title">iPS_기획안.pdf</div>
+                    <div class="result-info">
+                        연관도: 70%<br/>
+                        공통 키워드: iPS_요구사항, iPS_기능
+                    </div>
+                    <div class="result-bar" style="width: 70%;"></div>
+                </div>
+
+                <div class="section-title mt-4">GPT 연관성 설명</div>
+                <div class="explanation">
+                    선택한 문서는 iPS 솔루션 사용자 매뉴얼이며 원하시면 관리자 매뉴얼 및 시스템 설치 매뉴얼을 제공할 수 있습니다.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 폴더 추가 모달 -->
+    <div class="modal-overlay" id="folder-modal">
+        <div class="modal">
+            <h3>새 폴더 추가</h3>
+            <input type="text" id="folder-name" placeholder="폴더명을 입력하세요" />
+            <label style="display: block; margin-bottom: 8px; font-weight: bold; color: #374151;">생성 위치:</label>
+            <select id="folder-location"></select>
+            <div class="modal-buttons">
+                <button class="modal-btn modal-btn-secondary" onclick="closeFolderModal()">취소</button>
+                <button class="modal-btn modal-btn-primary" onclick="createFolder()">추가</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 문서 추가 모달 -->
+    <div class="modal-overlay" id="document-modal">
+        <div class="modal">
+            <h3>새 문서 추가</h3>
+            <div class="file-upload-area" onclick="triggerFileInput()">
+                <p>📁 파일을 선택하거나 여기로 드래그하세요</p>
+                <div class="file-info">지원 형식: PDF, DOC, DOCX, XLS, XLSX, PNG, JPG (최대 50MB)</div>
+            </div>
+            <input type="file" id="file-input" style="display: none;" 
+                   accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg" />
+            <div id="selected-file-info" class="selected-file-info hidden">
+                <strong>선택된 파일:</strong> <span id="file-name"></span><br>
+                <strong>크기:</strong> <span id="file-size"></span>
+            </div>
+            <label style="display: block; margin-bottom: 8px; font-weight: bold; color: #374151;">업로드 위치:</label>
+            <select id="document-location"></select>
+            <div class="modal-buttons">
+                <button class="modal-btn modal-btn-secondary" onclick="closeDocumentModal()">취소</button>
+                <button class="modal-btn modal-btn-primary" id="upload-btn" onclick="uploadDocument()" disabled>
+                    업로드
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 토스트 알림 -->
+    <div class="toast" id="toast"></div>
+
+    <script>
+        // 전역 변수들
+        let currentTab = 'my';
+        let selectedItem = { id: 'doc2', name: 'iPS_매뉴얼.pdf', type: 'document' };
+        let selectedFolder = null;
+        let selectedFile = null;
+        let currentView = 'search';
+        let folders = [];
+        let files = [];
+
+        // API 기본 URL
+        const API_BASE = window.location.origin + '/api';
+
+        // 서버 연결 상태 확인 함수
+        async function checkServerConnection() {
+            try {
+                console.log('서버 연결 확인 중...');
+                
+                // 5초 타임아웃 설정
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 5000);
+                
+                const response = await fetch(API_BASE + '/folders/my', {
+                    signal: controller.signal,
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                clearTimeout(timeoutId);
+                console.log('서버 응답:', response.status);
+                return response.ok;
+                
+            } catch (error) {
+                console.log('서버 연결 실패:', error.name, error.message);
+                
+                if (error.name === 'AbortError') {
+                    console.log('서버 연결 타임아웃');
+                }
+                return false;
+            }
+        }
+
+        // 유틸리티 함수들
+        function showToast(message, isError = false) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = `toast ${isError ? 'error' : ''} show`;
+            
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        function formatDate(dateString) {
+            return new Date(dateString).toLocaleDateString('ko-KR');
+        }
+
+        function findFolderById(folders, id) {
+            // ID를 숫자로 변환하여 비교
+            const targetId = parseInt(id);
+            for (let folder of folders) {
+                if (parseInt(folder.id) === targetId) return folder;
+                if (folder.children) {
+                    const found = findFolderById(folder.children, targetId);
+                    if (found) return found;
+                }
+            }
+            return null;
+        }
+
+        // 폴더의 전체 경로를 찾는 함수 (새로 추가)
+        function findFolderPath(folders, targetId, currentPath = []) {
+            // ID를 숫자로 변환하여 비교
+            const targetIdNum = parseInt(targetId);
+            for (let folder of folders) {
+                const newPath = [...currentPath, folder];
+                
+                if (parseInt(folder.id) === targetIdNum) {
+                    return newPath;
+                }
+                
+                if (folder.children) {
+                    const found = findFolderPath(folder.children, targetIdNum, newPath);
+                    if (found) return found;
+                }
+            }
+            return null;
+        }
+
+        // 폴더의 현재 펼침 상태를 수집하는 함수
+        function collectExpandedFolders(folderList) {
+            const expanded = [];
+            
+            function collectRecursive(folders) {
+                folders.forEach(folder => {
+                    if (folder.expanded) {
+                        expanded.push(parseInt(folder.id));
+                    }
+                    if (folder.children) {
+                        collectRecursive(folder.children);
+                    }
+                });
+            }
+            
+            collectRecursive(folderList);
+            return expanded;
+        }
+
+        // 폴더 펼침 상태를 복원하는 함수
+        function restoreExpandedFolders(folderList, expandedIds) {
+            function restoreRecursive(folders) {
+                folders.forEach(folder => {
+                    if (expandedIds.includes(parseInt(folder.id))) {
+                        folder.expanded = true;
+                    }
+                    if (folder.children) {
+                        restoreRecursive(folder.children);
+                    }
+                });
+            }
+            
+            restoreRecursive(folderList);
+        }
+
+        // 파일 업로드 후 자동으로 해당 폴더 펼치기 (디버깅 강화)
+        function autoExpandToFolder(targetFolderId) {
+            if (!targetFolderId) {
+                console.log('targetFolderId가 없음, 자동 펼치기 건너뜀');
+                return;
+            }
+            
+            console.log(`=== 자동 폴더 펼치기 시작 ===`);
+            console.log(`대상 폴더 ID: ${targetFolderId}`);
+            
+            // 해당 폴더까지의 경로를 찾아서 모두 펼치기
+            function expandPathTo(folderList, targetId, parentPath = []) {
+                for (let folder of folderList) {
+                    const currentPath = [...parentPath, folder];
+                    
+                    console.log(`폴더 확인: "${folder.name}" (id: ${folder.id}), 찾는 ID: ${targetId}`);
+                    
+                    if (parseInt(folder.id) === parseInt(targetId)) {
+                        console.log(`대상 폴더 찾음! 경로상의 모든 폴더 펼치기 시작`);
+                        // 경로상의 모든 폴더를 펼치기
+                        currentPath.forEach(pathFolder => {
+                            pathFolder.expanded = true;
+                            console.log(`✓ 폴더 펼침: "${pathFolder.name}" (id: ${pathFolder.id})`);
+                        });
+                        console.log(`경로 펼치기 완료!`);
+                        return true;
+                    }
+                    
+                    if (folder.children && folder.children.length > 0) {
+                        if (expandPathTo(folder.children, targetId, currentPath)) {
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            }
+            
+            const found = expandPathTo(folders, targetFolderId);
+            if (found) {
+                console.log(`✅ 자동 폴더 펼치기 성공: ${targetFolderId}`);
+            } else {
+                console.log(`❌ 대상 폴더를 찾을 수 없음: ${targetFolderId}`);
+                console.log('현재 폴더 구조:');
+                logFolderStructure(folders);
+            }
+            console.log(`=== 자동 폴더 펼치기 완료 ===`);
+        }
+
+        // 폴더 구조 로깅 함수 (디버깅용)
+        function logFolderStructure(folderList, depth = 0) {
+            folderList.forEach(folder => {
+                const indent = '  '.repeat(depth);
+                console.log(`${indent}📁 ${folder.name} (id: ${folder.id}, expanded: ${!!folder.expanded})`);
+                if (folder.children && folder.children.length > 0) {
+                    logFolderStructure(folder.children, depth + 1);
+                }
+            });
+        }
+
+        // API 호출 함수들
+        async function loadFolders() {
+            try {
+                console.log(`폴더 로딩 시작: /api/folders/${currentTab}`);
+                const response = await fetch(`${API_BASE}/folders/${currentTab}`);
+                if (!response.ok) throw new Error(`서버 응답 오류: ${response.status}`);
+                const data = await response.json();
+                console.log('폴더 데이터 원본:', data);
+                console.log('폴더 개수:', data.length);
+                
+                // 만약 flat 배열이라면 직접 계층 구조를 만들기
+                let processedData = data;
+                if (data.length > 0 && !data[0].hasOwnProperty('children')) {
+                    console.log('Flat 배열 감지, 계층 구조 생성 중...');
+                    processedData = buildClientSideTree(data);
+                }
+                
+                // 폴더 구조 상세 출력
+                function printDetailedFolders(folderList, depth = 0) {
+                    folderList.forEach(folder => {
+                        const indent = '  '.repeat(depth);
+                        console.log(`${indent}폴더: ${folder.name} (id: ${folder.id}, parent_id: ${folder.parent_id})`);
+                        if (folder.children && folder.children.length > 0) {
+                            printDetailedFolders(folder.children, depth + 1);
+                        }
+                    });
+                }
+                
+                console.log('상세 폴더 구조:');
+                printDetailedFolders(processedData);
+                
+                folders = processedData;
+                return processedData;
+            } catch (error) {
+                if (error.name === 'TypeError' && error.message.includes('fetch')) {
+                    console.error('서버 연결 실패:', error);
+                    throw new Error('서버에 연결할 수 없습니다. 서버가 실행 중인지 확인하세요.');
+                } else {
+                    console.error('폴더 로딩 오류:', error);
+                    throw new Error(`폴더를 불러오는데 실패했습니다: ${error.message}`);
+                }
+            }
+        }
+
+        // 클라이언트에서 계층 구조 생성하는 함수
+        function buildClientSideTree(flatArray) {
+            console.log('클라이언트에서 계층 구조 생성:', flatArray);
+            
+            const buildTree = (items, parentId = null) => {
+                return items
+                    .filter(item => item.parent_id === parentId)
+                    .map(item => {
+                        const children = buildTree(items, item.id);
+                        console.log(`트리 빌딩: ${item.name} (id: ${item.id}) -> children: ${children.length}개`);
+                        return {
+                            ...item,
+                            children: children
+                        };
+                    });
+            };
+            
+            return buildTree(flatArray);
+        }
+
+        async function loadFiles(folderId = null) {
+            try {
+                const url = `${API_BASE}/files/${currentTab}${folderId ? `?folderId=${folderId}` : ''}`;
+                console.log(`파일 로딩 API 호출: ${url}`);
+                const response = await fetch(url);
+                if (!response.ok) throw new Error(`서버 응답 오류: ${response.status}`);
+                const data = await response.json();
+                console.log(`파일 데이터 (folderId: ${folderId}):`, data);
+                console.log(`로드된 파일 개수: ${data.length}`);
+                
+                // 각 파일의 folder_id 정보 출력
+                data.forEach((file, index) => {
+                    console.log(`  파일 ${index + 1}: ${file.original_name || file.name} (id: ${file.id}, folder_id: ${file.folder_id})`);
+                });
+                
+                return data;
+            } catch (error) {
+                if (error.name === 'TypeError' && error.message.includes('fetch')) {
+                    console.error('서버 연결 실패:', error);
+                    throw new Error('서버에 연결할 수 없습니다. 서버가 실행 중인지 확인하세요.');
+                } else {
+                    console.error('파일 로딩 오류:', error);
+                    throw new Error(`파일을 불러오는데 실패했습니다: ${error.message}`);
+                }
+            }
+        }
+
+        async function createFolderApi(name, parentId, tabType) {
+            try {
+                console.log('폴더 생성 API 호출:', { name, parentId, tabType });
+                
+                const requestBody = { 
+                    name, 
+                    parentId: parentId ? parseInt(parentId) : null,  // 숫자로 변환
+                    tabType 
+                };
+                console.log('요청 본문:', requestBody);
+                
+                const response = await fetch(`${API_BASE}/folders`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(requestBody)
+                });
+                
+                const data = await response.json();
+                console.log('폴더 생성 응답:', { status: response.status, data });
+                
+                if (!response.ok) {
+                    throw new Error(data.error || '폴더 생성 실패');
+                }
+                return data;
+            } catch (error) {
+                console.error('폴더 생성 오류:', error);
+                showToast(`폴더 생성에 실패했습니다: ${error.message}`, true);
+                throw error;
+            }
+        }
+
+        async function uploadFileApi(file, folderId, tabType) {
+            try {
+                console.log('파일 업로드 API 호출:', { fileName: file.name, folderId, tabType });
+                
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('folderId', folderId ? parseInt(folderId) : '');  // 숫자로 변환
+                formData.append('tabType', tabType);
+
+                console.log('FormData 내용:', {
+                    file: file.name,
+                    folderId: folderId ? parseInt(folderId) : null,
+                    tabType
+                });
+
+                const response = await fetch(`${API_BASE}/upload`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+                console.log('파일 업로드 응답:', { status: response.status, data });
+
+                if (!response.ok) {
+                    throw new Error(data.error || '파일 업로드 실패');
+                }
+                return data;
+            } catch (error) {
+                console.error('파일 업로드 오류:', error);
+                showToast(`파일 업로드에 실패했습니다: ${error.message}`, true);
+                throw error;
+            }
+        }
+
+        async function deleteFolderApi(id) {
+            try {
+                console.log('폴더 삭제 시도:', id);
+                const response = await fetch(`${API_BASE}/folders/${id}`, {
+                    method: 'DELETE'
+                });
+                
+                const data = await response.json();
+                console.log('폴더 삭제 응답:', data);
+                
+                if (!response.ok) {
+                    throw new Error(data.error || '폴더 삭제 실패');
+                }
+                return data;
+            } catch (error) {
+                console.error('폴더 삭제 오류:', error);
+                showToast(`폴더 삭제에 실패했습니다: ${error.message}`, true);
+                throw error;
+            }
+        }
+
+        async function deleteFileApi(id) {
+            try {
+                console.log('파일 삭제 시도:', id);
+                const response = await fetch(`${API_BASE}/files/${id}`, {
+                    method: 'DELETE'
+                });
+                
+                const data = await response.json();
+                console.log('파일 삭제 응답:', data);
+                
+                if (!response.ok) {
+                    throw new Error(data.error || '파일 삭제 실패');
+                }
+                return data;
+            } catch (error) {
+                console.error('파일 삭제 오류:', error);
+                showToast(`파일 삭제에 실패했습니다: ${error.message}`, true);
+                throw error;
+            }
+        }
+
+        // 데이터 다시 로드하지 않고 렌더링만 하는 함수 (디버깅 강화)
+        async function renderFileTreeWithoutReload() {
+            try {
+                console.log(`=== 파일 트리 렌더링 시작 ===`);
+                console.log('현재 selectedFolder:', selectedFolder);
+                
+                const fileTree = document.getElementById('file-tree');
+                
+                // 모든 폴더의 파일들을 미리 로드해서 폴더별로 분류
+                const allFiles = await loadAllFiles();
+                const filesByFolder = groupFilesByFolder(allFiles);
+                
+                let html = '';
+
+                async function renderItem(item, depth = 0) {
+                    const isFolder = item.children !== undefined || item.type === 'folder';
+                    const hasChildren = isFolder && (item.children && item.children.length > 0);
+                    
+                    // 폴더인 경우, 해당 폴더의 파일들도 체크
+                    let hasFolderFiles = false;
+                    const folderKey = isFolder ? item.id.toString() : null;
+                    
+                    if (isFolder && filesByFolder[folderKey]) {
+                        hasFolderFiles = filesByFolder[folderKey].length > 0;
+                        console.log(`폴더 "${item.name}" (id: ${item.id})에 ${filesByFolder[folderKey].length}개 파일 있음`);
+                    }
+                    
+                    const hasAnyChildren = hasChildren || hasFolderFiles;
+                    const expandIcon = hasAnyChildren ? (item.expanded ? '▼' : '▶') : '•';
+                    const expandClass = hasAnyChildren ? (item.expanded ? 'expanded' : '') : 'empty';
+                    
+                    const selectedClass = selectedItem?.id == item.id ? ' selected' : '';
+                    const selectedParentClass = selectedFolder == parseInt(item.id) ? ' selected-parent' : '';
+                    const depthClass = depth > 0 ? ` depth-${Math.min(depth, 4)}` : '';
+                    
+                    const icon = isFolder ? '📁' : '📄';
+                    const name = isFolder ? item.name : (item.original_name || item.name);
+                    
+                    console.log(`렌더링: ${isFolder ? '폴더' : '파일'} "${name}" (depth: ${depth}, expanded: ${item.expanded})`);
+                    
+                    html += `
+                        <div class="tree-item${selectedClass}${selectedParentClass}${depthClass}" onclick="selectItem('${item.id}', '${isFolder ? 'folder' : 'document'}')">
+                            ${isFolder ? `<span class="expand-icon ${expandClass}" onclick="toggleFolder(event, '${item.id}')">${expandIcon}</span>` : '<span class="expand-icon empty"></span>'}
+                            <span class="tree-icon">${icon}</span>
+                            <span class="tree-name">${name}</span>
+                            <button class="delete-btn" onclick="deleteItem(event, '${item.id}', '${isFolder ? 'folder' : 'document'}', '${name.replace(/'/g, '\\\'')}')" title="삭제">×</button>
+                        </div>
+                    `;
+                    
+                    // 폴더가 펼쳐져 있는 경우
+                    if (isFolder && item.expanded) {
+                        console.log(`폴더 "${item.name}" 펼쳐짐 - 하위 항목 렌더링 시작`);
+                        
+                        // 1. 하위 폴더들 렌더링
+                        if (hasChildren) {
+                            console.log(`하위 폴더 ${item.children.length}개 렌더링`);
+                            item.children.forEach(child => renderItem(child, depth + 1));
+                        }
+                        
+                        // 2. 해당 폴더의 파일들 렌더링
+                        if (hasFolderFiles) {
+                            const folderFiles = filesByFolder[folderKey];
+                            console.log(`폴더 "${item.name}"(id: ${item.id})의 파일 ${folderFiles.length}개 렌더링 시작`);
+                            folderFiles.forEach(file => {
+                                console.log(`  파일 렌더링: "${file.original_name || file.name}" (id: ${file.id}, folder_id: ${file.folder_id})`);
+                                renderItem(file, depth + 1);
+                            });
+                            console.log(`폴더 "${item.name}"의 파일 렌더링 완료`);
+                        }
+                    } else if (isFolder) {
+                        console.log(`폴더 "${item.name}" 접혀있음 - 하위 항목 건너뜀`);
+                    }
+                }
+
+                // 폴더 렌더링
+                console.log(`=== 루트 폴더 렌더링 시작 ===`);
+                console.log(`루트 폴더 개수: ${folders.length}`);
+                for (const folder of folders) {
+                    await renderItem(folder, 0);
+                }
+                
+                // 루트 파일들 렌더링 (folder_id가 null인 파일들)
+                const rootFiles = filesByFolder['null'] || [];
+                console.log(`=== 루트 파일 렌더링 시작 ===`);
+                console.log(`루트 파일 개수: ${rootFiles.length}`);
+                rootFiles.forEach(file => {
+                    console.log(`루트 파일 렌더링: "${file.original_name || file.name}" (id: ${file.id}, folder_id: ${file.folder_id})`);
+                    renderItem(file, 0);
+                });
+
+                fileTree.innerHTML = html || '<div style="text-align: center; padding: 20px; color: #6b7280;">항목이 없습니다.</div>';
+                updateCurrentPath();
+                
+                console.log(`=== 파일 트리 렌더링 완료 ===`);
+
+            } catch (error) {
+                console.error('파일 트리 렌더링 오류:', error);
+                const fileTree = document.getElementById('file-tree');
+                if (fileTree) {
+                    fileTree.innerHTML = `
+                        <div style="text-align: center; padding: 20px; color: #ef4444;">
+                            <div style="font-size: 48px; margin-bottom: 16px;">⚠️</div>
+                            <p><strong>데이터를 불러오는데 실패했습니다</strong></p>
+                            <p style="font-size: 14px; color: #6b7280; margin-top: 8px;">
+                                ${error.message}
+                            </p>
+                            <button onclick="renderFileTree()" style="margin-top: 16px; padding: 8px 16px; background: #2563eb; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                                다시 시도
+                            </button>
+                        </div>
+                    `;
+                }
+            }
+        }
+
+        // 모든 파일을 로드하는 함수 (디버깅 강화)
+        async function loadAllFiles() {
+            try {
+                const url = `${API_BASE}/files/${currentTab}`;
+                console.log(`=== 모든 파일 로딩 시작 ===`);
+                console.log(`API 호출: ${url}`);
+                
+                const response = await fetch(url);
+                if (!response.ok) throw new Error(`서버 응답 오류: ${response.status}`);
+                
+                const data = await response.json();
+                console.log(`모든 파일 로드 완료: ${data.length}개`);
+                
+                // 각 파일의 상세 정보 출력
+                data.forEach((file, index) => {
+                    console.log(`파일 ${index + 1}: ${file.original_name || file.name} (id: ${file.id}, folder_id: ${file.folder_id})`);
+                });
+                
+                console.log(`=== 모든 파일 로딩 완료 ===`);
+                return data;
+            } catch (error) {
+                console.error('모든 파일 로딩 오류:', error);
+                return [];
+            }
+        }
+
+        // 파일들을 폴더별로 그룹화하는 함수 (디버깅 강화)
+        function groupFilesByFolder(files) {
+            console.log(`=== 파일 그룹화 시작 ===`);
+            console.log(`총 파일 개수: ${files.length}`);
+            
+            const grouped = {};
+            files.forEach(file => {
+                const folderId = file.folder_id;
+                const folderKey = folderId === null ? 'null' : folderId.toString();
+                
+                if (!grouped[folderKey]) {
+                    grouped[folderKey] = [];
+                }
+                grouped[folderKey].push(file);
+                
+                console.log(`파일 "${file.original_name || file.name}" → 폴더 키: "${folderKey}"`);
+            });
+            
+            console.log('=== 폴더별 파일 그룹화 결과 ===');
+            Object.keys(grouped).forEach(folderId => {
+                const folderName = folderId === 'null' ? '루트' : `폴더 ID ${folderId}`;
+                console.log(`${folderName}: ${grouped[folderId].length}개 파일`);
+                grouped[folderId].forEach(file => {
+                    console.log(`  - ${file.original_name || file.name} (id: ${file.id})`);
+                });
+            });
+            console.log(`=== 파일 그룹화 완료 ===`);
+            
+            return grouped;
+        }
+
+        // 메인 렌더링 함수 (수정됨)
+        async function renderFileTree() {
+            const fileTree = document.getElementById('file-tree');
+            
+            // 로딩 상태 표시
+            fileTree.innerHTML = `
+                <div style="text-align: center; padding: 20px; color: #6b7280;">
+                    <div class="loading"></div>
+                    서버 연결 확인 중...
+                </div>
+            `;
+            
+            try {
+                // 서버 연결 상태 확인
+                console.log('서버 연결 상태 확인 시작');
+                const isConnected = await checkServerConnection();
+                console.log('서버 연결 상태:', isConnected);
+                
+                if (!isConnected) {
+                    fileTree.innerHTML = `
+                        <div style="text-align: center; padding: 20px; color: #ef4444;">
+                            <div style="font-size: 48px; margin-bottom: 16px;">🚫</div>
+                            <p><strong>서버에 연결할 수 없습니다</strong></p>
+                            <p style="font-size: 14px; color: #6b7280; margin-top: 8px;">
+                                백엔드 서버가 실행되고 있는지 확인하세요.<br/>
+                                <code style="background: #f3f4f6; padding: 2px 4px; border-radius: 3px;">node server.js</code>로 서버를 시작한 후<br/>
+                                <code style="background: #f3f4f6; padding: 2px 4px; border-radius: 3px;">http://localhost:3000</code>으로 접속하세요.
+                            </p>
+                            <button onclick="renderFileTree()" style="margin-top: 16px; padding: 8px 16px; background: #2563eb; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                                다시 시도
+                            </button>
+                        </div>
+                    `;
+                    return;
+                }
+
+                console.log('서버 연결 성공, 데이터 로딩 시작');
+                
+                // 폴더 구조 로드
+                await loadFolders();
+                
+                // 모든 파일들을 로드해서 폴더별로 분류
+                const allFiles = await loadAllFiles();
+                const filesByFolder = groupFilesByFolder(allFiles);
+                
+                let html = '';
+
+                async function renderItem(item, depth = 0) {
+                    const isFolder = item.children !== undefined || item.type === 'folder';
+                    const hasChildren = isFolder && (item.children && item.children.length > 0);
+                    
+                    // 폴더인 경우, 해당 폴더의 파일들도 체크
+                    let hasFolderFiles = false;
+                    if (isFolder && filesByFolder[item.id]) {
+                        hasFolderFiles = filesByFolder[item.id].length > 0;
+                    }
+                    
+                    const hasAnyChildren = hasChildren || hasFolderFiles;
+                    const expandIcon = hasAnyChildren ? (item.expanded ? '▼' : '▶') : '•';
+                    const expandClass = hasAnyChildren ? (item.expanded ? 'expanded' : '') : 'empty';
+                    
+                    const selectedClass = selectedItem?.id == item.id ? ' selected' : '';
+                    const selectedParentClass = selectedFolder == parseInt(item.id) ? ' selected-parent' : '';
+                    const depthClass = depth > 0 ? ` depth-${Math.min(depth, 4)}` : '';
+                    
+                    const icon = isFolder ? '📁' : '📄';
+                    const name = isFolder ? item.name : (item.original_name || item.name);
+                    
+                    html += `
+                        <div class="tree-item${selectedClass}${selectedParentClass}${depthClass}" onclick="selectItem('${item.id}', '${isFolder ? 'folder' : 'document'}')">
+                            ${isFolder ? `<span class="expand-icon ${expandClass}" onclick="toggleFolder(event, '${item.id}')">${expandIcon}</span>` : '<span class="expand-icon empty"></span>'}
+                            <span class="tree-icon">${icon}</span>
+                            <span class="tree-name">${name}</span>
+                            <button class="delete-btn" onclick="deleteItem(event, '${item.id}', '${isFolder ? 'folder' : 'document'}', '${name.replace(/'/g, '\\\'')}')" title="삭제">×</button>
+                        </div>
+                    `;
+                    
+                    // 폴더가 펼쳐져 있는 경우
+                    if (isFolder && item.expanded) {
+                        // 1. 하위 폴더들 렌더링
+                        if (hasChildren) {
+                            item.children.forEach(child => renderItem(child, depth + 1));
+                        }
+                        
+                        // 2. 해당 폴더의 파일들 렌더링
+                        if (hasFolderFiles) {
+                            const folderFiles = filesByFolder[item.id];
+                            console.log(`폴더 ${item.name}(id: ${item.id})의 파일들 렌더링:`, folderFiles.length, '개');
+                            folderFiles.forEach(file => {
+                                console.log(`  - 파일: ${file.original_name || file.name} (folder_id: ${file.folder_id})`);
+                                renderItem(file, depth + 1);
+                            });
+                        }
+                    }
+                }
+
+                // 폴더 렌더링
+                console.log('폴더 렌더링 시작, 폴더 개수:', folders.length);
+                for (const folder of folders) {
+                    await renderItem(folder, 0);
+                }
+                
+                // 루트 파일들 렌더링 (folder_id가 null인 파일들)
+                const rootFiles = filesByFolder[null] || [];
+                console.log(`루트 파일 렌더링 시작, 파일 개수: ${rootFiles.length}`);
+                rootFiles.forEach(file => {
+                    console.log(`  루트 파일: ${file.original_name || file.name} (folder_id: ${file.folder_id})`);
+                    renderItem(file, 0);
+                });
+
+                const fileTree = document.getElementById('file-tree');
+                fileTree.innerHTML = html || '<div style="text-align: center; padding: 20px; color: #6b7280;">항목이 없습니다.</div>';
+                updateCurrentPath();
+
+            } catch (error) {
+                console.error('파일 트리 렌더링 오류:', error);
+                document.getElementById('file-tree').innerHTML = `
+                    <div style="text-align: center; padding: 20px; color: #ef4444;">
+                        <div style="font-size: 48px; margin-bottom: 16px;">⚠️</div>
+                        <p><strong>데이터를 불러오는데 실패했습니다</strong></p>
+                        <p style="font-size: 14px; color: #6b7280; margin-top: 8px;">
+                            ${error.message}
+                        </p>
+                        <button onclick="renderFileTree()" style="margin-top: 16px; padding: 8px 16px; background: #2563eb; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                            다시 시도
+                        </button>
+                    </div>
+                `;
+            }
+        }
+
+        function updateCurrentPath() {
+            const currentPath = document.getElementById('current-path');
+            if (!selectedFolder) {
+                currentPath.textContent = '📁 루트';
+                return;
+            }
+            
+            // 선택된 폴더의 전체 경로 찾기
+            const folderPath = findFolderPath(folders, selectedFolder);
+            if (folderPath && folderPath.length > 0) {
+                const pathNames = folderPath.map(folder => folder.name);
+                currentPath.textContent = `📁 루트 > ${pathNames.join(' > ')}`;
+            } else {
+                const folder = findFolderById(folders, selectedFolder);
+                currentPath.textContent = folder ? `📁 루트 > ${folder.name}` : '📁 루트';
+            }
+        }
+
+        function updateDocumentContent() {
+            const filenameInput = document.getElementById('filename-input');
+            const documentContent = document.getElementById('document-content');
+            const documentMeta = document.getElementById('document-meta');
+
+            if (!selectedItem) {
+                filenameInput.value = '문서를 선택하세요';
+                documentContent.innerHTML = `
+                    <div style="text-align: center; padding: 40px; color: #6b7280;">
+                        <div style="font-size: 48px; margin-bottom: 16px;">📄</div>
+                        <p>좌측에서 문서를 선택하면 내용이 표시됩니다.</p>
+                    </div>
+                `;
+                documentMeta.textContent = '문서 정보가 여기에 표시됩니다.';
+                return;
+            }
+
+            filenameInput.value = selectedItem.name || selectedItem.original_name || '';
+            
+            if (currentView === 'summary') {
+                documentContent.innerHTML = `
+                    <h4 style="font-size: 18px; margin-bottom: 16px;">요약 내용</h4>
+                    <p style="margin-bottom: 16px;">
+                        image Portal Service는 웹(PC)과 모바일 브라우저에서 복합기 이미지 파일에 접근할 수 있으며, 
+                        핵심기능으로 부서 공용문서함과 개인문서함 기능을 제공하고 이용자가 원하는 문서에 쉽고, 
+                        빠르게 접근할 수 있게 문서의 썸네일 정보와 다양한 검색 옵션을 제공하고 있습니다.
+                    </p>
+                    <p style="margin-bottom: 16px;">
+                        image portal service의 주요기능으로는 공용문서함과 개인문서함과 팩스문서함, 주소록관리 기능, 
+                        문서 전달기능이 있으며 부가 기능으로 문서함 생성, 이동, 서버처리 기능이 제공되고 있습니다.
+                    </p>
+                    <p style="font-weight: bold;">
+                        iPS 솔루션에 대한 추가 정보가 필요하시면 기능별로 정리된 자료를 제공할 수 있습니다.
+                    </p>
+                `;
+            } else if (currentView === 'email') {
+                documentContent.innerHTML = `
+                    <h4 style="font-size: 18px; margin-bottom: 16px;">📨 받은 메일함</h4>
+                    <table style="width: 100%; border: 1px solid #d1d5db; border-radius: 6px; overflow: hidden; margin-bottom: 24px; border-collapse: collapse;">
+                        <thead style="background: #f9fafb;">
+                            <tr>
+                                <th style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: left; font-size: 14px;">보낸 사람</th>
+                                <th style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: left; font-size: 14px;">제목</th>
+                                <th style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: center; font-size: 14px;">일자</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; font-size: 14px;"><strong>에스크닥</strong></td>
+                                <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; font-size: 14px;">iPS_매뉴얼 보내드립니다</td>
+                                <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; font-size: 14px; text-align: center;">2025.05.15.10.10.10</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; font-size: 14px;"><strong>에스크닥</strong></td>
+                                <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; font-size: 14px;">다운 받은 메일함 보완 내용 보내드립니다</td>
+                                <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; font-size: 14px; text-align: center;">2025.05.17.10.20.27</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; font-size: 14px;"><strong>에스크닥</strong></td>
+                                <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; font-size: 14px;">스캔 문서함 이미지 수정본 보내드립니다</td>
+                                <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; font-size: 14px; text-align: center;">2025.05.18.15.10.10</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <h4 style="font-size: 18px; margin-bottom: 16px;">📨 보낸 메일함</h4>
+                    <table style="width: 100%; border: 1px solid #d1d5db; border-radius: 6px; overflow: hidden; border-collapse: collapse;">
+                        <thead style="background: #f9fafb;">
+                            <tr>
+                                <th style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: left; font-size: 14px;">받는 사람</th>
+                                <th style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: left; font-size: 14px;">제목</th>
+                                <th style="padding: 10px; border-bottom: 1px solid #e5e7eb; text-align: center; font-size: 14px;">일자</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; font-size: 14px;"><strong>리코코리아</strong></td>
+                                <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; font-size: 14px;">다운 받은 메일함 내용 보완 부탁드립니다</td>
+                                <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; font-size: 14px; text-align: center;">2025.05.16.17.10.10</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; font-size: 14px;"><strong>리코코리아</strong></td>
+                                <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; font-size: 14px;">스캔 문서함 이미지 교체 부탁드립니다</td>
+                                <td style="padding: 10px; border-bottom: 1px solid #e5e7eb; font-size: 14px; text-align: center;">2025.05.17.17.50.20</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <p style="font-size: 12px; color: #6b7280; margin-top: 8px;">※ 제목을 클릭하시면 메일 내용을 보실 수 있습니다</p>
+                `;
+            } else {
+                // 기본 검색 화면
+                documentContent.innerHTML = `
+                    이 문서는 RICOH Korea에서 제공하는 웹 기반 문서 관리 시스템으로, 스캔/팩스 문서를 웹과 모바일 브라우저를 통해 저장, 공유, 이메일 전송, 검색하는 기능을 포함하고 있습니다.
+                    <div style="text-align: center; margin-top: 16px;">
+                        <div style="display: inline-block; border: 2px dashed #d1d5db; padding: 32px; border-radius: 8px;">
+                            📄 iPS menual
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        // 이벤트 핸들러들 (수정됨)
+        async function selectItem(id, type) {
+            console.log('선택된 항목:', { id, type, currentSelectedFolder: selectedFolder });
+            
+            // 기존 선택 해제
+            document.querySelectorAll('.tree-item').forEach(el => {
+                el.classList.remove('selected', 'selected-parent');
+            });
+
+            if (type === 'folder') {
+                // ID를 숫자로 변환하여 비교
+                const folderId = parseInt(id);
+                
+                // 같은 폴더를 다시 클릭하면 선택 해제
+                if (selectedFolder == folderId) {
+                    console.log('폴더 선택 해제 - 루트로 이동');
+                    selectedFolder = null;
+                    selectedItem = null;
+                } else {
+                    console.log('폴더 선택됨:', folderId);
+                    selectedFolder = folderId;
+                    selectedItem = findFolderById(folders, folderId);
+                    if (selectedItem) selectedItem.type = 'folder';
+                }
+                
+                // 폴더 선택/해제 시 UI 다시 렌더링
+                await renderFileTreeWithoutReload();
+            } else {
+                // 문서 선택
+                selectedItem = files.find(f => f.id == id);
+                if (selectedItem) {
+                    selectedItem.type = 'document';
+                    console.log('문서 선택됨:', selectedItem);
+                    // 선택된 문서 하이라이트는 다음 렌더링에서 처리됨
+                }
+                // 문서 선택 시에는 렌더링하지 않고 CSS 클래스만 업데이트
+                const currentItem = document.querySelector(`[onclick*="selectItem('${id}', 'document')"]`);
+                if (currentItem) {
+                    currentItem.classList.add('selected');
+                }
+            }
+            
+            updateDocumentContent();
+        }
+
+        function toggleFolder(event, folderId) {
+            event.stopPropagation();
+            console.log(`=== 폴더 토글 시작 ===`);
+            console.log(`토글할 폴더 ID: ${folderId}`);
+            
+            const targetId = parseInt(folderId);
+            
+            function updateTree(folderList, depth = 0) {
+                return folderList.map(folder => {
+                    const indent = '  '.repeat(depth);
+                    if (parseInt(folder.id) === targetId) {
+                        const newExpanded = !folder.expanded;
+                        console.log(`${indent}✓ 폴더 "${folder.name}" (id: ${folder.id}) 상태 변경: ${folder.expanded} → ${newExpanded}`);
+                        return { ...folder, expanded: newExpanded };
+                    }
+                    if (folder.children) {
+                        return { ...folder, children: updateTree(folder.children, depth + 1) };
+                    }
+                    return folder;
+                });
+            }
+
+            folders = updateTree(folders);
+            
+            console.log('토글 후 폴더 구조:');
+            logFolderStructure(folders);
+            console.log(`=== 폴더 토글 완료 ===`);
+            
+            // 메모리 상태만 변경 후 렌더링
+            renderFileTreeWithoutReload();
+        }
+
+        async function deleteItem(event, id, type, name) {
+            event.stopPropagation();
+            console.log('삭제 시도:', id, type, name);
+            
+            if (!confirm(`정말 "${name}"을(를) 삭제하시겠습니까?`)) return;
+
+            try {
+                // 1. 현재 펼침 상태 저장
+                const expandedFolders = collectExpandedFolders(folders);
+                console.log('현재 펼쳐진 폴더들:', expandedFolders);
+                
+                showToast('삭제하는 중...');
+                
+                if (type === 'folder') {
+                    await deleteFolderApi(id);
+                    showToast('폴더가 삭제되었습니다.');
+                    if (selectedFolder == id) selectedFolder = null;
+                } else {
+                    await deleteFileApi(id);
+                    showToast('파일이 삭제되었습니다.');
+                }
+                
+                // 선택된 항목이 삭제된 경우 선택 해제
+                if (selectedItem && selectedItem.id == id) {
+                    selectedItem = null;
+                }
+                
+                // 2. 폴더 데이터를 새로 로드
+                console.log('폴더 데이터 새로 로드 중...');
+                await loadFolders();
+                
+                // 3. 이전 펼침 상태 복원 (삭제된 폴더 제외)
+                console.log('펼침 상태 복원 중...');
+                const filteredExpanded = expandedFolders.filter(folderId => folderId != id);
+                restoreExpandedFolders(folders, filteredExpanded);
+                
+                // 4. 트리 렌더링
+                await renderFileTreeWithoutReload();
+                updateDocumentContent();
+                
+            } catch (error) {
+                console.error('삭제 오류:', error);
+            }
+        }
+
+        function changeView(view) {
+            console.log('뷰 변경:', view);
+            currentView = view;
+            document.querySelectorAll('.view-btn').forEach(btn => btn.classList.remove('active'));
+            event.currentTarget.classList.add('active');
+            updateDocumentContent();
+        }
+
+        // 탭 전환
+        function switchTab(tab) {
+            console.log('탭 전환:', tab);
+            currentTab = tab;
+            selectedFolder = null;
+            selectedItem = null;
+            
+            // 탭 버튼 상태 업데이트
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.getElementById(`tab-${tab}`).classList.add('active');
+            
+            // 탭 전환 시 새로운 데이터 로드
+            renderFileTree();
+            updateDocumentContent();
+        }
+
+        // 모달 함수들
+        function openFolderModal() {
+            console.log('폴더 모달 열기');
+            const folderLocation = document.getElementById('folder-location');
+            
+            // 사용 가능한 폴더 목록 생성
+            folderLocation.innerHTML = '<option value="">📁 루트</option>';
+            
+            function addFolderOptions(folderList, prefix = '') {
+                folderList.forEach(folder => {
+                    const displayName = prefix ? `${prefix} > ${folder.name}` : folder.name;
+                    const option = document.createElement('option');
+                    option.value = folder.id;
+                    option.textContent = `📁 ${displayName}`;
+                    folderLocation.appendChild(option);
+                    
+                    if (folder.children && folder.children.length > 0) {
+                        addFolderOptions(folder.children, displayName);
+                    }
+                });
+            }
+            
+            addFolderOptions(folders);
+            folderLocation.value = selectedFolder || '';
+            document.getElementById('folder-modal').style.display = 'flex';
+            document.getElementById('folder-name').focus();
+        }
+
+        function closeFolderModal() {
+            document.getElementById('folder-modal').style.display = 'none';
+            document.getElementById('folder-name').value = '';
+        }
+
+        // 폴더 생성 함수 (수정됨)
+        async function createFolder() {
+            console.log('폴더 생성 시작');
+            const folderName = document.getElementById('folder-name').value.trim();
+            const parentId = document.getElementById('folder-location').value || null;
+            
+            console.log('폴더 생성 파라미터:', { folderName, parentId, currentTab });
+            
+            if (!folderName) {
+                showToast('폴더명을 입력해주세요.', true);
+                return;
+            }
+
+            try {
+                // 1. 현재 펼침 상태 저장
+                const expandedFolders = collectExpandedFolders(folders);
+                console.log('현재 펼쳐진 폴더들:', expandedFolders);
+                
+                const newFolder = await createFolderApi(folderName, parentId, currentTab);
+                console.log('새 폴더 생성 완료:', newFolder);
+                showToast('폴더가 생성되었습니다.');
+                closeFolderModal();
+                
+                // 2. 폴더 데이터를 새로 로드
+                console.log('폴더 데이터 새로 로드 중...');
+                await loadFolders();
+                
+                // 3. 이전 펼침 상태 복원
+                console.log('펼침 상태 복원 중...');
+                restoreExpandedFolders(folders, expandedFolders);
+                
+                // 4. 새 폴더가 생성된 부모 폴더까지의 경로를 펼치기
+                if (parentId) {
+                    console.log('부모 폴더까지 경로 펼치기:', parentId);
+                    autoExpandToFolder(parentId);
+                }
+                
+                // 5. 폴더 트리 렌더링
+                console.log('폴더 트리 렌더링...');
+                await renderFileTreeWithoutReload();
+                
+            } catch (error) {
+                console.error('폴더 생성 실패:', error);
+            }
+        }
+
+        function openDocumentModal() {
+            console.log('=== 문서 모달 열기 시작 ===');
+            const documentLocation = document.getElementById('document-location');
+            
+            // 사용 가능한 폴더 목록 생성
+            documentLocation.innerHTML = '<option value="">📁 루트</option>';
+            
+            function addFolderOptions(folderList, prefix = '') {
+                folderList.forEach(folder => {
+                    const displayName = prefix ? `${prefix} > ${folder.name}` : folder.name;
+                    const option = document.createElement('option');
+                    option.value = folder.id;
+                    option.textContent = `📁 ${displayName}`;
+                    documentLocation.appendChild(option);
+                    
+                    if (folder.children && folder.children.length > 0) {
+                        addFolderOptions(folder.children, displayName);
+                    }
+                });
+            }
+            
+            addFolderOptions(folders);
+            documentLocation.value = selectedFolder || '';
+            console.log('폴더 위치 설정 완료:', documentLocation.value);
+            
+            // 초기 상태 설정
+            selectedFile = null;
+            console.log('selectedFile 초기화:', selectedFile);
+            
+            const selectedFileInfoEl = document.getElementById('selected-file-info');
+            if (selectedFileInfoEl) {
+                selectedFileInfoEl.classList.add('hidden');
+                console.log('파일 정보 영역 숨김');
+            }
+            
+            const fileInput = document.getElementById('file-input');
+            if (fileInput) {
+                fileInput.value = '';
+                console.log('파일 입력 요소 초기화 완료');
+            } else {
+                console.error('file-input 요소를 찾을 수 없습니다');
+            }
+            
+            console.log('모달 초기 상태:', { selectedFile });
+            updateUploadButton();
+            
+            const modal = document.getElementById('document-modal');
+            if (modal) {
+                modal.style.display = 'flex';
+                console.log('모달 표시 완료');
+            } else {
+                console.error('document-modal 요소를 찾을 수 없습니다');
+            }
+            
+            console.log('=== 문서 모달 열기 완료 ===');
+        }
+
+        function closeDocumentModal() {
+            console.log('문서 모달 닫기');
+            document.getElementById('document-modal').style.display = 'none';
+            document.getElementById('selected-file-info').classList.add('hidden');
+            
+            // 파일 입력 초기화
+            const fileInput = document.getElementById('file-input');
+            if (fileInput) {
+                fileInput.value = '';
+            }
+            
+            selectedFile = null;
+            console.log('selectedFile 초기화됨');
+            updateUploadButton();
+        }
+
+        function triggerFileInput() {
+            console.log('파일 입력 트리거 호출됨');
+            const fileInput = document.getElementById('file-input');
+            console.log('파일 입력 요소:', fileInput);
+            
+            if (fileInput) {
+                console.log('파일 입력 요소 클릭 시도');
+                try {
+                    fileInput.click();
+                    console.log('파일 입력 요소 클릭 성공');
+                } catch (error) {
+                    console.error('파일 입력 요소 클릭 실패:', error);
+                }
+            } else {
+                console.error('file-input 요소를 찾을 수 없습니다');
+                
+                // 대안: 모든 input[type="file"] 요소 찾기
+                const allFileInputs = document.querySelectorAll('input[type="file"]');
+                console.log('찾은 모든 파일 입력 요소들:', allFileInputs);
+                
+                if (allFileInputs.length > 0) {
+                    console.log('첫 번째 파일 입력 요소 클릭 시도');
+                    allFileInputs[0].click();
+                }
+            }
+        }
+
+        function updateUploadButton() {
+            document.getElementById('upload-btn').disabled = !selectedFile;
+        }
+
+        // 파일 업로드 함수 (디버깅 강화)
+        async function uploadDocument() {
+            console.log(`=== 파일 업로드 시작 ===`);
+            
+            if (!selectedFile) {
+                console.error('선택된 파일이 없음');
+                return;
+            }
+
+            const folderId = document.getElementById('document-location').value || null;
+            const uploadBtn = document.getElementById('upload-btn');
+            
+            console.log('파일 업로드 파라미터:', { 
+                fileName: selectedFile.name, 
+                folderId, 
+                currentTab 
+            });
+            
+            // 업로드할 폴더 정보 확인
+            if (folderId) {
+                const targetFolder = findFolderById(folders, folderId);
+                console.log(`업로드 대상 폴더: "${targetFolder?.name}" (id: ${folderId})`);
+            } else {
+                console.log('업로드 대상: 루트 폴더');
+            }
+            
+            uploadBtn.disabled = true;
+            uploadBtn.innerHTML = '<div class="loading"></div>업로드 중...';
+
+            try {
+                // 1. 현재 펼침 상태 저장
+                const expandedFolders = collectExpandedFolders(folders);
+                console.log('현재 펼쳐진 폴더들:', expandedFolders);
+                
+                // 2. 파일 업로드 API 호출
+                console.log('파일 업로드 API 호출 중...');
+                const uploadedFile = await uploadFileApi(selectedFile, folderId, currentTab);
+                console.log('파일 업로드 완료:', uploadedFile);
+                showToast('파일이 업로드되었습니다.');
+                closeDocumentModal();
+                
+                // 3. 폴더 데이터를 새로 로드
+                console.log('폴더 데이터 새로 로드 중...');
+                await loadFolders();
+                
+                // 4. 이전 펼침 상태 복원
+                console.log('펼침 상태 복원 중...');
+                restoreExpandedFolders(folders, expandedFolders);
+                
+                // 5. 파일이 업로드된 폴더까지의 경로를 자동으로 펼치기
+                if (folderId) {
+                    console.log(`업로드된 폴더(${folderId})로 경로 펼치기 시작`);
+                    autoExpandToFolder(folderId);
+                } else {
+                    console.log('루트에 업로드됨 - 추가 펼치기 불필요');
+                }
+                
+                // 6. 폴더 구조 로깅
+                console.log('=== 현재 폴더 구조 ===');
+                logFolderStructure(folders);
+                
+                // 7. UI 새로고침
+                console.log('파일 트리 렌더링 시작...');
+                await renderFileTreeWithoutReload();
+                
+                console.log(`=== 파일 업로드 완료 ===`);
+                
+            } catch (error) {
+                console.error('파일 업로드 실패:', error);
+                showToast(`파일 업로드에 실패했습니다: ${error.message}`, true);
+            } finally {
+                uploadBtn.disabled = false;
+                uploadBtn.textContent = '업로드';
+            }
+        }
+
+        // 이벤트 리스너 설정
+        document.addEventListener('DOMContentLoaded', async function() {
+            console.log('DOM 로드 완료');
+            
+            // 초기 변수 상태 확인
+            console.log('초기 전역 변수 상태:', {
+                currentTab,
+                selectedFolder,
+                selectedFile,
+                currentView
+            });
+            
+            // 탭 이벤트
+            document.getElementById('tab-my').addEventListener('click', () => switchTab('my'));
+            document.getElementById('tab-public').addEventListener('click', () => switchTab('public'));
+            
+            // 파일 입력 이벤트 (강화된 버전)
+            const fileInput = document.getElementById('file-input');
+            const fileUploadArea = document.getElementById('file-upload-area');
+            
+            if (fileInput) {
+                console.log('파일 입력 요소 찾음:', fileInput);
+                
+                fileInput.addEventListener('change', function(event) {
+                    console.log('파일 입력 이벤트 발생!');
+                    console.log('event.target:', event.target);
+                    console.log('event.target.files:', event.target.files);
+                    console.log('event.target.files.length:', event.target.files.length);
+                    
+                    const file = event.target.files[0];
+                    console.log('선택된 파일:', file);
+                    
+                    if (file) {
+                        console.log('파일 정보:', {
+                            name: file.name,
+                            size: file.size,
+                            type: file.type
+                        });
+                        
+                        selectedFile = file;
+                        console.log('selectedFile 설정됨:', selectedFile.name);
+                        
+                        const fileNameEl = document.getElementById('file-name');
+                        const fileSizeEl = document.getElementById('file-size');
+                        const selectedFileInfoEl = document.getElementById('selected-file-info');
+                        
+                        if (fileNameEl) {
+                            fileNameEl.textContent = file.name;
+                            console.log('파일명 표시됨:', file.name);
+                        } else {
+                            console.error('file-name 요소를 찾을 수 없습니다');
+                        }
+                        
+                        if (fileSizeEl) {
+                            fileSizeEl.textContent = formatFileSize(file.size);
+                            console.log('파일 크기 표시됨:', formatFileSize(file.size));
+                        } else {
+                            console.error('file-size 요소를 찾을 수 없습니다');
+                        }
+                        
+                        if (selectedFileInfoEl) {
+                            selectedFileInfoEl.classList.remove('hidden');
+                            console.log('파일 정보 영역 표시됨');
+                        } else {
+                            console.error('selected-file-info 요소를 찾을 수 없습니다');
+                        }
+                        
+                        updateUploadButton();
+                    } else {
+                        console.log('파일이 선택되지 않음');
+                        selectedFile = null;
+                        updateUploadButton();
+                    }
+                });
+                
+                // 드래그 앤 드롭 이벤트 추가
+                if (fileUploadArea) {
+                    console.log('드래그&드롭 이벤트 설정');
+                    
+                    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                        fileUploadArea.addEventListener(eventName, preventDefaults, false);
+                    });
+                    
+                    function preventDefaults(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                    }
+                    
+                    ['dragenter', 'dragover'].forEach(eventName => {
+                        fileUploadArea.addEventListener(eventName, highlight, false);
+                    });
+                    
+                    ['dragleave', 'drop'].forEach(eventName => {
+                        fileUploadArea.addEventListener(eventName, unhighlight, false);
+                    });
+                    
+                    function highlight() {
+                        fileUploadArea.classList.add('dragover');
+                    }
+                    
+                    function unhighlight() {
+                        fileUploadArea.classList.remove('dragover');
+                    }
+                    
+                    fileUploadArea.addEventListener('drop', handleDrop, false);
+                    
+                    function handleDrop(e) {
+                        console.log('파일 드롭됨');
+                        const dt = e.dataTransfer;
+                        const files = dt.files;
+                        console.log('드롭된 파일들:', files);
+                        
+                        if (files.length > 0) {
+                            const file = files[0];
+                            console.log('첫 번째 파일 선택:', file.name);
+                            
+                            // 파일 입력 요소에 파일 설정
+                            const dataTransfer = new DataTransfer();
+                            dataTransfer.items.add(file);
+                            fileInput.files = dataTransfer.files;
+                            
+                            // change 이벤트 수동 발생
+                            const changeEvent = new Event('change', { bubbles: true });
+                            fileInput.dispatchEvent(changeEvent);
+                        }
+                    }
+                } else {
+                    console.error('file-upload-area 요소를 찾을 수 없습니다');
+                }
+            } else {
+                console.error('file-input 요소를 찾을 수 없습니다');
+            }
+            
+            // Enter 키 이벤트
+            document.getElementById('folder-name').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') createFolder();
+            });
+            
+            // 모달 외부 클릭시 닫기
+            document.addEventListener('click', (e) => {
+                if (e.target.classList.contains('modal-overlay')) {
+                    e.target.style.display = 'none';
+                }
+            });
+            
+            // 초기 로드 - 서버 연결 상태 확인 후 진행
+            console.log('서버 연결 상태 확인 중...');
+            await renderFileTree();
+            updateDocumentContent();
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,32 @@
+{
+  "name": "askdoc-system",
+  "version": "1.0.0",
+  "description": "AskDoc - AI 기반 문서 관리 시스템",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "setup": "npm install && node setup.js"
+  },
+  "keywords": [
+    "document-management",
+    "file-upload",
+    "sqlite",
+    "express",
+    "ai-documents"
+  ],
+  "author": "AskDoc Team",
+  "license": "MIT",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "multer": "^1.4.5-lts.1",
+    "sqlite3": "^5.1.7"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}
