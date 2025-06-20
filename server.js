@@ -352,6 +352,53 @@ app.get('/api/download/:fileId', (req, res) => {
     });
 });
 
+// 5-1. 파일 미리보기 (새로 추가)
+app.get('/api/preview/:fileId', (req, res) => {
+    const { fileId } = req.params;
+    
+    const query = "SELECT * FROM files WHERE id = ?";
+    
+    db.get(query, [fileId], (err, row) => {
+        if (err) {
+            res.status(500).json({ error: err.message });
+            return;
+        }
+        
+        if (!row) {
+            res.status(404).json({ error: '파일을 찾을 수 없습니다.' });
+            return;
+        }
+        
+        const filePath = row.file_path || path.join(uploadsDir, row.name);
+        
+        // 파일이 실제로 존재하는지 확인
+        if (!fs.existsSync(filePath)) {
+            res.status(404).json({ error: '파일이 서버에 존재하지 않습니다.' });
+            return;
+        }
+        
+        // 파일 미리보기를 위한 헤더 설정 (다운로드가 아닌 inline 표시)
+        res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(row.original_name)}"`);
+        res.setHeader('Content-Type', row.mime_type || 'application/octet-stream');
+        
+        // PDF 파일의 경우 X-Frame-Options 헤더 제거하여 iframe에서 표시 가능하도록 설정
+        if (row.mime_type === 'application/pdf') {
+            res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+        }
+        
+        // 파일 스트림 전송
+        const fileStream = fs.createReadStream(filePath);
+        fileStream.pipe(res);
+        
+        fileStream.on('error', (err) => {
+            console.error('파일 전송 오류:', err);
+            if (!res.headersSent) {
+                res.status(500).json({ error: '파일 전송 중 오류가 발생했습니다.' });
+            }
+        });
+    });
+});
+
 // 6. 폴더 삭제 (재귀적 삭제)
 app.delete('/api/folders/:id', (req, res) => {
     const { id } = req.params;

@@ -221,6 +221,50 @@
             overflow-y: auto;
             line-height: 1.6;
             color: #374151;
+            position: relative;
+        }
+
+        .document-iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            border-radius: 6px;
+            background: white;
+        }
+
+        .no-preview {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            padding: 40px;
+            text-align: center;
+            color: #6b7280;
+        }
+
+        .no-preview-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+
+        .download-btn {
+            margin-top: 16px;
+            padding: 12px 24px;
+            background: #2563eb;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: background 0.2s;
+        }
+
+        .download-btn:hover {
+            background: #1d4ed8;
         }
 
         .document-meta {
@@ -1342,11 +1386,11 @@
             const documentContent = document.getElementById('document-content');
             const documentMeta = document.getElementById('document-meta');
 
-            if (!selectedItem) {
+            if (!selectedItem || selectedItem.type === 'folder') {
                 filenameInput.value = '문서를 선택하세요';
                 documentContent.innerHTML = `
-                    <div style="text-align: center; padding: 40px; color: #6b7280;">
-                        <div style="font-size: 48px; margin-bottom: 16px;">📄</div>
+                    <div class="no-preview">
+                        <div class="no-preview-icon">📄</div>
                         <p>좌측에서 문서를 선택하면 내용이 표시됩니다.</p>
                     </div>
                 `;
@@ -1354,7 +1398,16 @@
                 return;
             }
 
-            filenameInput.value = selectedItem.name || selectedItem.original_name || '';
+            const fileName = selectedItem.original_name || selectedItem.name || '';
+            filenameInput.value = fileName;
+            
+            // 문서 메타 정보 업데이트
+            documentMeta.innerHTML = `
+                파일명: ${fileName}<br />
+                파일 크기: ${formatFileSize(selectedItem.file_size || 0)}<br />
+                MIME 타입: ${selectedItem.mime_type || 'unknown'}<br />
+                업로드일: ${selectedItem.created_at ? formatDate(selectedItem.created_at) : 'unknown'}
+            `;
             
             if (currentView === 'summary') {
                 documentContent.innerHTML = `
@@ -1427,16 +1480,120 @@
                     <p style="font-size: 12px; color: #6b7280; margin-top: 8px;">※ 제목을 클릭하시면 메일 내용을 보실 수 있습니다</p>
                 `;
             } else {
-                // 기본 검색 화면
+                // 기본 검색 화면 - 실제 파일 미리보기
+                showFilePreview(selectedItem);
+            }
+        }
+
+        // 파일 미리보기 함수 (새로 추가)
+        function showFilePreview(file) {
+            const documentContent = document.getElementById('document-content');
+            
+            if (!file || !file.id) {
                 documentContent.innerHTML = `
-                    이 문서는 RICOH Korea에서 제공하는 웹 기반 문서 관리 시스템으로, 스캔/팩스 문서를 웹과 모바일 브라우저를 통해 저장, 공유, 이메일 전송, 검색하는 기능을 포함하고 있습니다.
-                    <div style="text-align: center; margin-top: 16px;">
-                        <div style="display: inline-block; border: 2px dashed #d1d5db; padding: 32px; border-radius: 8px;">
-                            📄 iPS menual
+                    <div class="no-preview">
+                        <div class="no-preview-icon">❌</div>
+                        <p>파일 정보를 찾을 수 없습니다.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const mimeType = file.mime_type || '';
+            const fileName = file.original_name || file.name || '';
+            
+            console.log('파일 미리보기 시도:', { fileName, mimeType, fileId: file.id });
+
+            // 미리보기를 지원하는 파일 타입인지 확인
+            if (mimeType === 'application/pdf' || 
+                mimeType.startsWith('image/') || 
+                mimeType.startsWith('text/') ||
+                mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+                mimeType === 'application/msword') {
+                
+                console.log('지원되는 파일 타입, iframe으로 미리보기 시도');
+                
+                const previewUrl = `${API_BASE}/preview/${file.id}`;
+                
+                if (mimeType.startsWith('image/')) {
+                    // 이미지 파일의 경우 img 태그 사용
+                    documentContent.innerHTML = `
+                        <div style="display: flex; justify-content: center; align-items: center; height: 100%; padding: 20px;">
+                            <img src="${previewUrl}" 
+                                 alt="${fileName}" 
+                                 style="max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"
+                                 onerror="showPreviewError(this, '${fileName}', ${file.id})" />
                         </div>
+                    `;
+                } else {
+                    // PDF 및 기타 문서는 iframe 사용
+                    documentContent.innerHTML = `
+                        <iframe 
+                            class="document-iframe" 
+                            src="${previewUrl}" 
+                            title="${fileName}"
+                            onload="console.log('iframe 로드 완료')"
+                            onerror="showPreviewError(this, '${fileName}', ${file.id})">
+                        </iframe>
+                    `;
+                }
+            } else {
+                // 미리보기를 지원하지 않는 파일 타입
+                console.log('지원되지 않는 파일 타입, 다운로드 링크 제공');
+                
+                const downloadUrl = `${API_BASE}/download/${file.id}`;
+                const fileIcon = getFileIcon(mimeType, fileName);
+                
+                documentContent.innerHTML = `
+                    <div class="no-preview">
+                        <div class="no-preview-icon">${fileIcon}</div>
+                        <p><strong>${fileName}</strong></p>
+                        <p>이 파일 형식은 미리보기를 지원하지 않습니다.</p>
+                        <p style="font-size: 14px; color: #6b7280; margin-top: 8px;">
+                            파일 타입: ${mimeType || 'unknown'}<br/>
+                            파일 크기: ${formatFileSize(file.file_size || 0)}
+                        </p>
+                        <a href="${downloadUrl}" class="download-btn" target="_blank">
+                            📥 파일 다운로드
+                        </a>
                     </div>
                 `;
             }
+        }
+
+        // 파일 아이콘 반환 함수 (새로 추가)
+        function getFileIcon(mimeType, fileName) {
+            if (mimeType.startsWith('image/')) return '🖼️';
+            if (mimeType === 'application/pdf') return '📕';
+            if (mimeType.includes('word') || fileName.toLowerCase().endsWith('.doc') || fileName.toLowerCase().endsWith('.docx')) return '📄';
+            if (mimeType.includes('excel') || fileName.toLowerCase().endsWith('.xls') || fileName.toLowerCase().endsWith('.xlsx')) return '📊';
+            if (mimeType.includes('powerpoint') || fileName.toLowerCase().endsWith('.ppt') || fileName.toLowerCase().endsWith('.pptx')) return '📋';
+            if (mimeType.startsWith('text/')) return '📝';
+            if (mimeType.startsWith('video/')) return '🎥';
+            if (mimeType.startsWith('audio/')) return '🎵';
+            return '📎';
+        }
+
+        // 미리보기 오류 처리 함수 (새로 추가)
+        function showPreviewError(element, fileName, fileId) {
+            console.error('미리보기 로드 실패:', fileName);
+            
+            const downloadUrl = `${API_BASE}/download/${fileId}`;
+            const container = element.parentElement;
+            
+            container.innerHTML = `
+                <div class="no-preview">
+                    <div class="no-preview-icon">⚠️</div>
+                    <p><strong>${fileName}</strong></p>
+                    <p>파일을 미리보기할 수 없습니다.</p>
+                    <p style="font-size: 14px; color: #6b7280; margin-top: 8px;">
+                        파일이 손상되었거나 지원되지 않는 형식일 수 있습니다.
+                    </p>
+                    <a href="${downloadUrl}" class="download-btn" target="_blank">
+                        📥 파일 다운로드
+                    </a>
+                </div>
+            `;
         }
 
         // 이벤트 핸들러들 (수정됨)
@@ -1467,17 +1624,30 @@
                 // 폴더 선택/해제 시 UI 다시 렌더링
                 await renderFileTreeWithoutReload();
             } else {
-                // 문서 선택
-                selectedItem = files.find(f => f.id == id);
+                // 문서 선택 - 모든 파일에서 찾기
+                console.log('문서 선택 시도, ID:', id);
+                
+                // 모든 파일 다시 로드해서 정확한 파일 정보 가져오기
+                const allFiles = await loadAllFiles();
+                selectedItem = allFiles.find(f => f.id == id);
+                
                 if (selectedItem) {
                     selectedItem.type = 'document';
-                    console.log('문서 선택됨:', selectedItem);
-                    // 선택된 문서 하이라이트는 다음 렌더링에서 처리됨
-                }
-                // 문서 선택 시에는 렌더링하지 않고 CSS 클래스만 업데이트
-                const currentItem = document.querySelector(`[onclick*="selectItem('${id}', 'document')"]`);
-                if (currentItem) {
-                    currentItem.classList.add('selected');
+                    console.log('문서 선택됨:', {
+                        id: selectedItem.id,
+                        name: selectedItem.original_name || selectedItem.name,
+                        mimeType: selectedItem.mime_type,
+                        size: selectedItem.file_size
+                    });
+                    
+                    // 선택된 문서 하이라이트
+                    const currentItem = document.querySelector(`[onclick*="selectItem('${id}', 'document')"]`);
+                    if (currentItem) {
+                        currentItem.classList.add('selected');
+                    }
+                } else {
+                    console.error('선택된 문서를 찾을 수 없음:', id);
+                    console.log('사용 가능한 파일들:', allFiles.map(f => ({ id: f.id, name: f.original_name || f.name })));
                 }
             }
             
@@ -1862,7 +2032,7 @@
             
             // 파일 입력 이벤트 (강화된 버전)
             const fileInput = document.getElementById('file-input');
-            const fileUploadArea = document.getElementById('file-upload-area');
+            const fileUploadArea = document.querySelector('.file-upload-area');
             
             if (fileInput) {
                 console.log('파일 입력 요소 찾음:', fileInput);
